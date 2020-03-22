@@ -22,6 +22,12 @@
 #include "Position_01.cpp"
 #include "Attitude_01.cpp"
 
+
+typedef struct {
+	Position pos;
+	float speed;
+} Route;
+
 class Flight {
 public:
 	Flight();
@@ -31,6 +37,7 @@ public:
 	void update(float _delta_t);
 
   int getId(){return id;};
+	std::list<Route> *getRoute() { return &route;};
 	Position getPosition() { return pos;};
 	Attitude getAttitude() { return att;};
 	float getSpeed() { return speed;};
@@ -44,6 +51,7 @@ private:
 	Position pos;
   Attitude att;
 	float speed;
+	std::list<Route> route;
 };
 
 
