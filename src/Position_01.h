@@ -27,6 +27,8 @@ public:
 	void set_y(float _y) {y = _y;};
 	void set_z(float _z) {z = _z;};
 
+	float distance(Position pos);
+
 
 private:
 		float x, y, z; //meters

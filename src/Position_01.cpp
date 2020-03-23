@@ -26,3 +26,11 @@ Position::Position(float _x, float _y, float _z)
 	y = _y;
 	z = _z;
 }
+
+float
+Position::distance(Position pos)
+{
+	return sqrtf( ( (x - pos.get_x()) * (x - pos.get_x()) ) +
+			      ( (y - pos.get_y()) * (y - pos.get_y()) ) +
+		       	  ( (z - pos.get_z()) * (z - pos.get_z()) ) );
+}
