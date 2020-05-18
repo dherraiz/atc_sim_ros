@@ -29,11 +29,13 @@ set(LINK_LIBS
 
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+ add_message_files(
+   FILES
+   Flight_Info.msg
+   Tower_Info.msg
+   Position.msg
+   Route.msg
+ )
 
 ## Generate services in the 'srv' folder
  add_service_files(
@@ -50,31 +52,3 @@ set(LINK_LIBS
 
 ## Generate added messages and services with any dependencies listed here
  generate_messages(
-   DEPENDENCIES
-   std_msgs
- )
-
-catkin_package(
-   INCLUDE_DIRS include
-   LIBRARIES geometry_tf
-   CATKIN_DEPENDS geometry_msgs tf2_geometry_msgs roscpp tf2 tf2_ros message_runtime
-)
-
-
-
-include_directories(
-# include
-  ${catkin_INCLUDE_DIRS}
-)
-
-
-
-add_executable(flight_gen_server src/flight_gen_server.cpp)
-target_link_libraries(flight_gen_server ${catkin_LIBRARIES})
-#add_dependencies(add_two_ints_server beginner_tutorials_gencpp)
-
-add_executable(main src/main.cpp)
-target_link_libraries(main ${catkin_LIBRARIES})
-#add_dependencies(add_two_ints_client beginner_tutorials_gencpp)
-
-
