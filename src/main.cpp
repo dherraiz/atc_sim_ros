@@ -1,5 +1,6 @@
 #include "ros/ros.h"
 #include "atc_sim_ros/GenerateFlight.h"
+#include "atc_sim_ros/Flight_Info.h"
 #include <cstdlib>
 #include <list>
 
@@ -11,13 +12,14 @@
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2/LinearMath/Quaternion.h"
 
-#include "Flight_01.cpp"
+#include "Tower.cpp"
+
 
 #define OBJ_PUB_RATE  0.05
 #define FLIGHT_GENERATE_RATE 300
 
 
-geometry_msgs::TransformStamped generate_flight_obj(Position pos, Attitude att, int num)
+geometry_msgs::TransformStamped generate_flight_obj(Position pos, float bearing, float inclination, int num)
 {
   tf2::Stamped<tf2::Transform> object;
   object.frame_id_ = "world";
@@ -26,7 +28,7 @@ geometry_msgs::TransformStamped generate_flight_obj(Position pos, Attitude att, 
   object.setOrigin(tf2::Vector3(pos.get_x(), pos.get_y(), pos.get_z()));
 
   tf2::Quaternion q;
-  q.setRPY(att.get_angx(), att.get_angy(), att.get_angz());
+  q.setRPY(0, -inclination, bearing);
   object.setRotation(q);
 
   geometry_msgs::TransformStamped object_msg = tf2::toMsg(object);
@@ -40,76 +42,84 @@ geometry_msgs::TransformStamped generate_flight_obj(Position pos, Attitude att, 
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "main");
+  ros::init(argc, argv, "main");  //Iniciar módulo
   ros::NodeHandle n;
 
-  ros::ServiceClient client = n.serviceClient<atc_sim_ros::GenerateFlight>("generate_flights");
+  ros::ServiceClient client = n.serviceClient<atc_sim_ros::GenerateFlight>("generate_flights"); //Declarar servicio
   atc_sim_ros::GenerateFlight srv;
 
-  Flight flight_created;//---------------------------------
+  ros::Publisher flight_info_pub = n.advertise<atc_sim_ros::Flight_Info>("flight_info", 1000); //Declarar publicación de info
+  atc_sim_ros::Flight_Info flight_pub;
+
+  Flight flight_created;  // Nuevo avión
   int id_count = 1;
 
-  tf2_ros::TransformBroadcaster br;
+  Tower tower; //Nueva torre de control "Tower"
+
+  tf2_ros::TransformBroadcaster br; // Declarar tf
   geometry_msgs::TransformStamped flight_obj_msg;
 
-  ros::Time obj_ts = ros::Time::now();
+  ros::Time obj_ts = ros::Time::now(); //Iniciar tiempo
   ros::Time gen_ts = ros::Time::now();
 
-  float time_gen = 0.01;
+  float time_gen = 0.01;  //Declarar tiempo de actualización
   ros::Rate loop_rate(1/time_gen);
 
-  std::list<Flight*> flights;//----------------------------
-  std::list<Flight*>::iterator it;
+  //std::list<Flight*> flights;//---------------------------- Iciciar lista (?)
+  //std::list<Flight*>::iterator it;
 
-//----------------------------------------------------------
-if (client.call(srv)){
+
+  //---------------------------------------------------------- SERVICIO PARA SOLICITAR UNA GENERACIÓN DE UN NUEVO AVIÓN
   srv.request.id_req = id_count++;
-  Position pos(srv.response.x,srv.response.y,srv.response.z);
-  Attitude att(srv.response.angx,srv.response.angy,srv.response.angz);
-  flight_created.setId(srv.response.id);
-  flight_created.setPosition(pos);
-  flight_created.setAttitude(att);
-  flight_created.setSpeed(srv.response.speed);
+  if (client.call(srv)){
 
-  flights.push_back(&flight_created);
-}else{
-  ROS_ERROR("Failed to call service GenerateFlight");
-  return 1;
-}
-//----------------------------------------------------------
+    float pos_x =srv.response.x;
+    float pos_y =srv.response.y;
+    float pos_z =srv.response.z;
+    Position pos(pos_x, pos_y,  pos_z);
+
+    flight_created.setId(srv.response.id);
+    flight_created.setPosition(pos);
+    flight_created.setBearing(srv.response.bearing);
+    flight_created.setInclination(srv.response.inclination);
+    flight_created.setSpeed(srv.response.speed);
+    flight_created.setLanded(false);
 
 
-  while (ros::ok())
+  }else{
+    ROS_ERROR("Failed to call service GenerateFlight");
+    return 1;
+  }
+
+  while (ros::ok()) //BUCLE PRINCIPAL
   {
-    /*if ((ros::Time::now() - gen_ts).toSec() > FLIGHT_GENERATE_RATE)
-    {
-      gen_ts= ros::Time::now();
-      if (client.call(srv)){
-        srv.request.id_req = id_count++;
-        Position pos(srv.response.x,srv.response.y,srv.response.z);
-        Attitude att(srv.response.angx,srv.response.angy,srv.response.angz);
-        flight_created.setId(srv.response.id);
-        flight_created.setPosition(pos);
-        flight_created.setAttitude(att);
-        flight_created.setSpeed(srv.response.speed);
 
-        flights.push_back(&flight_created);
-      }else{
-        ROS_ERROR("Failed to call service GenerateFlight");
-        return 1;
-      }
-    }*/
-
-    if ((ros::Time::now() - obj_ts).toSec() > OBJ_PUB_RATE)
+    if ((ros::Time::now() - obj_ts).toSec() > OBJ_PUB_RATE) // Sólo entra cada OBJ_PUB_RATE (0.05) segundos
     {
       obj_ts = ros::Time::now();
       id_count = 1;
-      for(it = flights.begin(); it!=flights.end(); ++it)
-      {
-        //(*it)->update(time_gen);
-        flight_created.update(time_gen);
-        flight_obj_msg = generate_flight_obj(flight_created.getPosition(), flight_created.getAttitude(), id_count ++);
-      }
+
+      flight_created.update(OBJ_PUB_RATE);
+      flight_obj_msg = generate_flight_obj(flight_created.getPosition(), flight_created.getBearing(), flight_created.getInclination(), id_count ++);
+
+      //----------publicar info
+      flight_pub.id = flight_created.getId();
+      flight_pub.pos.x= (flight_created.getPosition()).get_x();
+      flight_pub.pos.y= (flight_created.getPosition()).get_y();
+      flight_pub.pos.z= (flight_created.getPosition()).get_z();
+      flight_pub.route.pos.x= (flight_created.getRoute()->front().pos.get_x());
+      flight_pub.route.pos.y= (flight_created.getRoute()->front().pos.get_y());
+      flight_pub.route.pos.z= (flight_created.getRoute()->front().pos.get_z());
+      flight_pub.speed = flight_created.getSpeed();
+      flight_pub.bearing = flight_created.getBearing();
+      flight_pub.inclination = flight_created.getInclination();
+      flight_pub.landed = flight_created.getLanded();
+
+
+      flight_info_pub.publish(flight_pub);
+      tower.dowork();
+        //----------publicar info
+
     }
 
     try
